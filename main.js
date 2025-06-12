@@ -3,6 +3,7 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { displayskw } from './skw/displayskw.js';
 import {
   delay,
   logAccount,
