@@ -182,6 +182,8 @@ async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
 }
 
 async function main() {
+  displayskw();
+  await delay(6000);
   console.clear();
   for (const pk of privateKeys) {
     const wallet = new ethers.Wallet(pk, provider);
