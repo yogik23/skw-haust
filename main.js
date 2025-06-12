@@ -24,7 +24,6 @@ import {
   datawHAUSTtoWBTC,
   datawHAUSTtoUSDT,
   approve,
-  approve2,
 } from './skw/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
