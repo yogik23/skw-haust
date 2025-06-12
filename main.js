@@ -1,117 +1,218 @@
-const { ethers } = require("ethers");
+//main
+import { ethers } from "ethers";
+import chalk from "chalk";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import {
+  delay,
+  logAccount,
+  logInfo,
+  logSuccess,
+  logCache,
+  logError,
+  logWarning,
+  ca_swap,
+  ca_approve,
+  usdc_address,
+  usdt_address,
+  wHAUST_address,
+  abi_swap,
+  inputamount,
+  datahaustUSDC,
+  datahaustUSDT,
+  datawHAUSTtoWETH,
+  datawHAUSTtoWBTC,
+  datawHAUSTtoUSDT,
+  approve,
+  approve2,
+} from './skw/config.js';
 
-// Konfigurasi jaringan
-const sepoliaRPC = "https://1rpc.io/sepolia";
-const privateKey = "xxxxx"; // Ganti dengan private key Anda
-const wallet = new ethers.Wallet(privateKey, new ethers.JsonRpcProvider(sepoliaRPC));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Kontrak token di Sepolia
-const tokens = {
-  USDT: { address: "0x93C5d30a7509E60871B77A3548a5BD913334cd35", decimal: 6 },
-  USDC: { address: "0xadbf21cCdFfe308a8d83AC933EF5D3c98830397F", decimal: 6 },
-  WBTC: { address: "0x21472DF1B5d2b673F6444B41258C6460294a2C06", decimal: 8 }
-};
+const RPC = "https://rpc-testnet.haust.app";
+const provider = new ethers.JsonRpcProvider(RPC);
 
-// Kontrak Bridge
-const bridgeContract = "0x5E2C8EF3035feeC3056864512Aaf8f4dc88CaEe3";
+const privateKeys = fs.readFileSync(path.join(__dirname, "privatekey.txt"), "utf-8")
+  .split("\n")
+  .map(k => k.trim())
+  .filter(k => k.length > 0);
 
-// Alamat tujuan di Haust Testnet
-const recipient = "0x8484c09f63b7f71be164d477c81920b1aad98de2";
 
-// Fungsi untuk mint token
-async function mintToken(tokenSymbol, amount) {
-  const token = tokens[tokenSymbol];
-  if (!token) {
-    console.error("Token tidak ditemukan!");
-    return;
-  }
-
-  const tokenContract = new ethers.Contract(token.address, ["function mint(address to, uint256 amount)"], wallet);
-  const amountWei = ethers.parseUnits(amount.toString(), token.decimal);
-
-  console.log(`🔹 Minting ${amount} ${tokenSymbol}...`);
-  const tx = await tokenContract.mint(recipient, amountWei);
-  await tx.wait();
-  console.log(`✅ Mint ${tokenSymbol} berhasil! Tx: ${tx.hash}`);
-}
-
-// Fungsi untuk approve token sebelum bridge
-async function approveToken(tokenSymbol, spender) {
-  const token = tokens[tokenSymbol];
-  if (!token) {
-    console.error("Token tidak ditemukan!");
-    return;
-  }
-
-  const tokenContract = new ethers.Contract(token.address, ["function approve(address spender, uint256 value)"], wallet);
-  const maxApproval = ethers.MaxUint256; // 2^256 - 1
-
-  console.log(`🔹 Approving ${tokenSymbol} for bridging...`);
-  const tx = await tokenContract.approve(spender, maxApproval);
-  await tx.wait();
-  console.log(`✅ Approved ${tokenSymbol}! Tx: ${tx.hash}`);
-}
-
-// Fungsi untuk bridge token
-async function bridgeToken(tokenSymbol, amount) {
-  const token = tokens[tokenSymbol];
-  if (!token) {
-    console.error("Token tidak ditemukan!");
-    return;
-  }
-
-  const bridge = new ethers.Contract(bridgeContract, ["function bridgeAsset(uint32, address, uint256, address, bool, bytes)"], wallet);
-  const amountWei = ethers.parseUnits(amount.toString(), token.decimal);
-
-  console.log(`🔹 Bridging ${amount} ${tokenSymbol} to Haust Testnet...`);
-  const tx = await bridge.bridgeAsset(
-    1, // destinationNetwork
-    recipient, // destinationAddress
-    amountWei, // amount
-    token.address, // token address
-    true, // forceUpdateGlobalExitRoot
-    "0x" // permitData kosong
-  );
-  await tx.wait();
-  console.log(`✅ Bridging ${tokenSymbol} berhasil! Tx: ${tx.hash}`);
-}
-
-// Fungsi untuk bridge ETH
-async function bridgeETH(amount) {
-  const bridge = new ethers.Contract(bridgeContract, ["function bridgeAsset(uint32, address, uint256, address, bool, bytes)"], wallet);
-  const amountWei = ethers.parseUnits(amount.toString(), 18);
-
-  console.log(`🔹 Bridging ${amount} ETH to Haust Testnet...`);
-  const tx = await bridge.bridgeAsset(
-    1, // destinationNetwork
-    recipient, // destinationAddress
-    amountWei, // amount ETH
-    ethers.ZeroAddress, // ETH tidak memiliki token address
-    true, // forceUpdateGlobalExitRoot
-    "0x", // permitData kosong
-    { value: amountWei } // Kirim ETH sebagai value
-  );
-  await tx.wait();
-  console.log(`✅ Bridging ETH berhasil! Tx: ${tx.hash}`);
-}
-
-// **Eksekusi**
-(async () => {
+async function Warp(wallet, amountWarp) {
   try {
-    await mintToken("USDT", 1000000); // Mint 1000 USDT
-    await mintToken("USDC", 1000000); // Mint 1000 USDC
-    await mintToken("WBTC", 1000);  // Mint 0.1 WBTC
+    const warp_abi = ["function deposit() external payable"];
+    const contract = new ethers.Contract(wHAUST_address, warp_abi, wallet);
 
-    await approveToken("USDT", bridgeContract);
-    await approveToken("USDC", bridgeContract);
-    await approveToken("WBTC", bridgeContract);
+    logCache(`Swap ${amountWarp} HAUST ke → ${amountWarp} wHAUST`);
 
-    await bridgeETH(0.001); // Bridge 0.01 ETH
-    await bridgeToken("USDT", 1000000);
-    await bridgeToken("USDC", 1000000);
-    await bridgeToken("WBTC", 1000);
+    const tx = await contract.deposit({
+      value: ethers.parseEther(amountWarp),
+      gasLimit: 100_000,
+    });
 
-  } catch (error) {
-    console.error("❌ Error:", error);
+    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
+    await tx.wait();
+    logSuccess(`Swap successful\n`);
+  } catch (err) {
+    logError(`❌ Error during Swap : ${err.message || err}`);
   }
-})();
+}
+
+
+async function Unwarp(wallet, amountUnwarp) {
+  try {
+    const amount = ethers.parseEther(amountUnwarp); 
+    const unwarp_abi = ["function withdraw(uint256 wad) external"];
+    const contract = new ethers.Contract(wHAUST_address, unwarp_abi, wallet);
+
+    logCache(`Swap ${amountUnwarp} WHAUST ke → ${amountUnwarp} HAUST`);
+
+    const tx = await contract.withdraw(amount, {
+      gasLimit: 100_000,
+    });
+
+    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
+    await tx.wait();
+    logSuccess(`Swap successful\n`);
+  } catch (err) {
+    logError(`❌ Error during Swap : ${err.message || err}`);
+  }
+}
+
+async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
+  const iface = new ethers.Interface(abi_swap);
+  const deadline = Math.floor(Date.now() / 1000) + 600;
+  const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
+  const commands = "0x00";
+  const {amountinput } = inputamount(amountwHAUSTtoWETH);
+  const inputwHAUSTtoWETH = datawHAUSTtoWETH(amountinput);
+
+  const calldata = iface.encodeFunctionData("execute", [
+    commands,
+    [inputwHAUSTtoWETH],
+    deadline,
+  ]);
+
+  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWETH, 18, expiration);
+
+  try {
+    logCache(`Swap ${amountwHAUSTtoWETH} wHAUST ke WETH`);
+    const tx = await wallet.sendTransaction({
+      to: ca_swap,
+      data: calldata,
+      value: ethers.parseEther(amountwHAUSTtoWETH),
+    });
+
+    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
+    await tx.wait();
+    logSuccess(`Swap Berhasil\n`);
+    return tx.hash;
+  } catch (err) {
+    logError(`❌ TX failed: ${err.message || err}`);
+  }
+}
+
+async function wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC) {
+  const asw = "0.01";
+  const iface = new ethers.Interface(abi_swap);
+  const deadline = Math.floor(Date.now() / 1000) + 600;
+  const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
+  const commands = "0x00";
+  const {amountinput } = inputamount(amountwHAUSTtoWBTC);
+  const inputwHAUSTtoWBTC = datawHAUSTtoWBTC(amountinput);
+
+  const calldata = iface.encodeFunctionData("execute", [
+    commands,
+    [inputwHAUSTtoWBTC],
+    deadline,
+  ]);
+
+  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWBTC, 18, expiration);
+
+  try {
+    logCache(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WETH`);
+    const tx = await wallet.sendTransaction({
+      to: ca_swap,
+      data: calldata,
+      value: ethers.parseEther(amountwHAUSTtoWBTC),
+    });
+
+    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
+    await tx.wait();
+    logSuccess(`Swap Berhasil\n`);
+    return tx.hash;
+  } catch (err) {
+    logError(`❌ TX failed: ${err.message || err}`);
+  }
+}
+
+async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
+  const iface = new ethers.Interface(abi_swap);
+  const deadline = Math.floor(Date.now() / 1000) + 600;
+  const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
+  const commands = "0x00";
+  const {amountinput } = inputamount(amountwHAUSTtoUSDT);
+  const inputwHAUSTtoUSDT = datawHAUSTtoUSDT(amountinput);
+
+  const calldata = iface.encodeFunctionData("execute", [
+    commands,
+    [inputwHAUSTtoUSDT],
+    deadline,
+  ]);
+
+  logCache(`Swap ${amountwHAUSTtoUSDT} wHAUST ke WETH`);
+
+  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoUSDT, 18, expiration);
+
+  try {
+    const tx = await wallet.sendTransaction({
+      to: ca_swap,
+      data: calldata,
+      value: ethers.parseEther(amountwHAUSTtoUSDT),
+    });
+
+    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
+    await tx.wait();
+    logSuccess(`Swap Berhasil\n`);
+    return tx.hash;
+  } catch (err) {
+    logError(`❌ TX failed: ${err.message || err}`);
+  }
+}
+
+async function main() {
+  console.clear();
+  for (const pk of privateKeys) {
+    const wallet = new ethers.Wallet(pk, provider);
+    const getBalance = await provider.getBalance(wallet.address);
+    const Balance = ethers.formatUnits(getBalance,18);
+    const formatbalance = parseFloat(Balance).toFixed(3);
+    logAccount(`Wallet : ${wallet.address}`);
+    logAccount(`Balance : ${Balance} HAUST`);
+
+    const amountWarp = "0.2";
+    await Warp(wallet, amountWarp);
+    await delay(5000);
+
+    const amountUnwarp = "0.19";
+    await Unwarp(wallet, amountUnwarp);
+    await delay(5000);
+
+    const amountwHAUSTtoWETH = "0.01";
+    await wHAUSTtoWETH(wallet, amountwHAUSTtoWETH);
+    await delay(5000);
+
+    const amountwHAUSTtoWBTC = "0.01";
+    await wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC);
+    await delay(5000);
+
+    const amountwHAUSTtoUSDT = "0.01";
+    await wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT);
+    await delay(5000);
+
+  }
+}
+
+main();
