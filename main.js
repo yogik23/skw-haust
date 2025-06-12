@@ -38,7 +38,6 @@ const privateKeys = fs.readFileSync(path.join(__dirname, "privatekey.txt"), "utf
   .map(k => k.trim())
   .filter(k => k.length > 0);
 
-
 async function Warp(wallet, amountWarp) {
   try {
     const warp_abi = ["function deposit() external payable"];
@@ -58,7 +57,6 @@ async function Warp(wallet, amountWarp) {
     logError(`❌ Error during Swap : ${err.message || err}`);
   }
 }
-
 
 async function Unwarp(wallet, amountUnwarp) {
   try {
