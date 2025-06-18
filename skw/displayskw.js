@@ -1,6 +1,6 @@
 import chalk from "chalk";
 
-function displayskw() {
+export function displayskw() {
   const baseArt1 = [
     "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀  ⢀⣠⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
     "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣿⣿⣿⣿⣿⣿⣿⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
@@ -101,5 +101,3 @@ function displayskw() {
     clearInterval(intervalId);
   }, 5000);
 }
-
-export { displayskw };
