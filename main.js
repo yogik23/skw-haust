@@ -1,4 +1,3 @@
-//main
 import { ethers } from "ethers";
 import chalk from "chalk";
 import cron from "node-cron";
@@ -41,7 +40,6 @@ const privateKeys = fs.readFileSync(path.join(__dirname, "privatekey.txt"), "utf
   .map(k => k.trim())
   .filter(k => k.length > 0);
 
-
 async function Warp(wallet, amountWarp) {
   try {
     const warp_abi = ["function deposit() external payable"];
@@ -61,7 +59,6 @@ async function Warp(wallet, amountWarp) {
     logError(`❌ Error during Swap : ${err.message || err}`);
   }
 }
-
 
 async function Unwarp(wallet, amountUnwarp) {
   try {
@@ -215,7 +212,6 @@ async function startBot() {
     const amountwHAUSTtoUSDT = "0.01";
     await wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT);
     await delay(5000);
-
   }
 }
 
