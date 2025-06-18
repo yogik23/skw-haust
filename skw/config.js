@@ -22,11 +22,11 @@ export const erc20Abi = [
   "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
-export export function randomAmount(min, max, decimalPlaces) {
+export function randomAmount(min, max, decimalPlaces) {
   return (Math.random() * (max - min) + min).toFixed(decimalPlaces);
 }
 
-export export function randomdelay(min = 7000, max = 15000) {
+export function randomdelay(min = 7000, max = 15000) {
   return Math.floor(Math.random() * (max - min) + min);
 }
 
