@@ -4,30 +4,37 @@ import cron from "node-cron";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { displayskw } from './skw/displayskw.js';
-import {
-  delay,
+import { displayskw } from "./skw/displayskw.js";
+import { 
   logAccount,
+  logError,
+  logCache,
   logInfo,
   logSuccess,
-  logCache,
-  logError,
-  logWarning,
+  delay,
+} from "./skw/logger.js";
+
+import {
   ca_swap,
   ca_approve,
   usdc_address,
   usdt_address,
   wHAUST_address,
+  randomAmount,
+  randomdelay
   abi_swap,
+  approve1,
+  approve2,
+} from './skw/config.js';
+
+import { 
   inputamount,
   datahaustUSDC,
   datahaustUSDT,
   datawHAUSTtoWETH,
   datawHAUSTtoWBTC,
   datawHAUSTtoUSDT,
-  approve1,
-  approve2,
-} from './skw/config.js';
+} from "./skw/inputdata.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +63,7 @@ async function Warp(wallet, amountWarp) {
     await tx.wait();
     logSuccess(`Swap successful\n`);
   } catch (err) {
-    logError(`❌ Error during Swap : ${err.message || err}`);
+    logError(`Error during Swap : ${err.message || err}`);
   }
 }
 
@@ -76,7 +83,7 @@ async function Unwarp(wallet, amountUnwarp) {
     await tx.wait();
     logSuccess(`Swap successful\n`);
   } catch (err) {
-    logError(`❌ Error during Swap : ${err.message || err}`);
+    logError(`Error during Swap : ${err.message || err}`);
   }
 }
 
@@ -94,11 +101,12 @@ async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
     deadline,
   ]);
 
+  logInfo(`Swap ${amountwHAUSTtoWETH} wHAUST ke WETH`);
+
   await approve1(wallet, amountwHAUSTtoWETH);
   await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWETH, 18, expiration);
 
   try {
-    logCache(`Swap ${amountwHAUSTtoWETH} wHAUST ke WETH`);
     const tx = await wallet.sendTransaction({
       to: ca_swap,
       data: calldata,
@@ -109,7 +117,7 @@ async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
     logSuccess(`Swap Berhasil\n`);
     return tx.hash;
   } catch (err) {
-    logError(`❌ TX failed: ${err.message || err}`);
+    logError(`TX failed: ${err.message || err}`);
   }
 }
 
@@ -128,11 +136,12 @@ async function wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC) {
     deadline,
   ]);
 
+  logInfo(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WBTC`);
+
   await approve1(wallet, amountwHAUSTtoWBTC);
   await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWBTC, 18, expiration);
 
   try {
-    logCache(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WBTC`);
     const tx = await wallet.sendTransaction({
       to: ca_swap,
       data: calldata,
@@ -143,7 +152,7 @@ async function wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC) {
     logSuccess(`Swap Berhasil\n`);
     return tx.hash;
   } catch (err) {
-    logError(`❌ TX failed: ${err.message || err}`);
+    logError(`TX failed: ${err.message || err}`);
   }
 }
 
@@ -161,7 +170,7 @@ async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
     deadline,
   ]);
 
-  logCache(`Swap ${amountwHAUSTtoUSDT} wHAUST ke USDT`);
+  logInfo(`Swap ${amountwHAUSTtoUSDT} wHAUST ke USDT`);
 
   await approve1(wallet, amountwHAUSTtoUSDT);
   await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoUSDT, 18, expiration);
@@ -177,7 +186,7 @@ async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
     logSuccess(`Swap Berhasil\n`);
     return tx.hash;
   } catch (err) {
-    logError(`❌ TX failed: ${err.message || err}`);
+    logError(`TX failed: ${err.message || err}`);
   }
 }
 
@@ -193,25 +202,28 @@ async function startBot() {
     logAccount(`Wallet : ${wallet.address}`);
     logAccount(`Balance : ${Balance} HAUST`);
 
-    const amountWarp = "0.2";
+await delay(randomdelay());
+
+    const amountWarp = "0.3";
     await Warp(wallet, amountWarp);
-    await delay(5000);
+    await delay(randomdelay())
 
     const amountUnwarp = "0.19";
     await Unwarp(wallet, amountUnwarp);
-    await delay(5000);
+    await delay(randomdelay())
 
-    const amountwHAUSTtoWETH = "0.01";
+    const amountwHAUSTtoWETH = randomAmount(0.01, 0.05, 2);
     await wHAUSTtoWETH(wallet, amountwHAUSTtoWETH);
-    await delay(5000);
+    await delay(randomdelay())
 
-    const amountwHAUSTtoWBTC = "0.01";
+    const amountwHAUSTtoWBTC = randomAmount(0.01, 0.05, 2);
     await wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC);
-    await delay(5000);
+    await delay(randomdelay())
 
-    const amountwHAUSTtoUSDT = "0.01";
+    const amountwHAUSTtoUSDT = randomAmount(0.01, 0.05, 2);
     await wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT);
-    await delay(5000);
+    await delay(randomdelay())
+
   }
 }
 
