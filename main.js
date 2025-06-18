@@ -1,5 +1,7 @@
+//main
 import { ethers } from "ethers";
 import chalk from "chalk";
+import cron from "node-cron";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -24,7 +26,8 @@ import {
   datawHAUSTtoWETH,
   datawHAUSTtoWBTC,
   datawHAUSTtoUSDT,
-  approve,
+  approve1,
+  approve2,
 } from './skw/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,6 +40,7 @@ const privateKeys = fs.readFileSync(path.join(__dirname, "privatekey.txt"), "utf
   .split("\n")
   .map(k => k.trim())
   .filter(k => k.length > 0);
+
 
 async function Warp(wallet, amountWarp) {
   try {
@@ -57,6 +61,7 @@ async function Warp(wallet, amountWarp) {
     logError(`❌ Error during Swap : ${err.message || err}`);
   }
 }
+
 
 async function Unwarp(wallet, amountUnwarp) {
   try {
@@ -92,14 +97,14 @@ async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
     deadline,
   ]);
 
-  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWETH, 18, expiration);
+  await approve1(wallet, amountwHAUSTtoWETH);
+  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWETH, 18, expiration);
 
   try {
     logCache(`Swap ${amountwHAUSTtoWETH} wHAUST ke WETH`);
     const tx = await wallet.sendTransaction({
       to: ca_swap,
       data: calldata,
-      value: ethers.parseEther(amountwHAUSTtoWETH),
     });
 
     logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
@@ -126,14 +131,14 @@ async function wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC) {
     deadline,
   ]);
 
-  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWBTC, 18, expiration);
+  await approve1(wallet, amountwHAUSTtoWBTC);
+  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWBTC, 18, expiration);
 
   try {
-    logCache(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WETH`);
+    logCache(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WBTC`);
     const tx = await wallet.sendTransaction({
       to: ca_swap,
       data: calldata,
-      value: ethers.parseEther(amountwHAUSTtoWBTC),
     });
 
     logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
@@ -159,15 +164,15 @@ async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
     deadline,
   ]);
 
-  logCache(`Swap ${amountwHAUSTtoUSDT} wHAUST ke WETH`);
+  logCache(`Swap ${amountwHAUSTtoUSDT} wHAUST ke USDT`);
 
-  await approve(wallet, wHAUST_address, ca_swap, amountwHAUSTtoUSDT, 18, expiration);
+  await approve1(wallet, amountwHAUSTtoUSDT);
+  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoUSDT, 18, expiration);
 
   try {
     const tx = await wallet.sendTransaction({
       to: ca_swap,
       data: calldata,
-      value: ethers.parseEther(amountwHAUSTtoUSDT),
     });
 
     logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
@@ -179,9 +184,9 @@ async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
   }
 }
 
-async function main() {
-  displayskw();
+async function startBot() {
   await delay(6000);
+  displayskw();
   console.clear();
   for (const pk of privateKeys) {
     const wallet = new ethers.Wallet(pk, provider);
@@ -212,6 +217,21 @@ async function main() {
     await delay(5000);
 
   }
+}
+
+async function main() {
+  const date = new Date().toISOString().split('T')[0];
+  cron.schedule('0 1 * * *', async () => { 
+    await startBot();
+    console.log();
+    console.log(chalk.hex('#FF00FF')(`${date} Cron AKTIF`));
+    console.log(chalk.hex('#FF1493')('Besok Jam 08:00 WIB Autobot Akan Run'));
+  });
+
+  await startBot();
+  console.log();
+  console.log(chalk.hex('#FF00FF')(`${date} Cron AKTIF`));
+  console.log(chalk.hex('#FF1493')('Besok Jam 08:00 WIB Autobot Akan Run'));
 }
 
 main();
