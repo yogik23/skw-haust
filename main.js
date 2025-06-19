@@ -1,11 +1,16 @@
 import { ethers } from "ethers";
 import chalk from "chalk";
 import cron from "node-cron";
+import axios from "axios";
+import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { displayskw } from "./skw/displayskw.js";
-import { 
+dotenv.config();
+import { params } from "./skw/params.js";
+
+import {
   logAccount,
   logError,
   logCache,
@@ -16,24 +21,17 @@ import {
 
 import {
   ca_swap,
-  ca_approve,
-  usdc_address,
-  usdt_address,
   wHAUST_address,
-  randomAmount,
   randomdelay,
   abi_swap,
+  cekbalance,
   approve1,
   approve2,
-} from './skw/config.js';
+} from "./skw/config.js";
 
 import { 
   inputamount,
-  datahaustUSDC,
-  datahaustUSDT,
-  datawHAUSTtoWETH,
-  datawHAUSTtoWBTC,
-  datawHAUSTtoUSDT,
+  inputdatabytes,
 } from "./skw/inputdata.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +49,15 @@ async function Warp(wallet, amountWarp) {
   try {
     const warp_abi = ["function deposit() external payable"];
     const contract = new ethers.Contract(wHAUST_address, warp_abi, wallet);
+    const getBalance = await provider.getBalance(wallet.address);
+    const Balance = ethers.formatUnits(getBalance,18);
+    const formatbalance = parseFloat(Balance).toFixed(3);
+    logAccount(`Balance : ${Balance} HAUST`);
+
+    if (getBalance < ethers.parseEther(amountWarp)) {
+      logInfo(`Saldo HAUST tidak Cukup untuk swap ${amountWarp}`);
+      return;
+    }
 
     logCache(`Swap ${amountWarp} HAUST ke → ${amountWarp} wHAUST`);
 
@@ -72,6 +79,12 @@ async function Unwarp(wallet, amountUnwarp) {
     const amount = ethers.parseEther(amountUnwarp); 
     const unwarp_abi = ["function withdraw(uint256 wad) external"];
     const contract = new ethers.Contract(wHAUST_address, unwarp_abi, wallet);
+    const { balancewei } = await cekbalance(wallet, wHAUST_address, 4);
+
+    if (balancewei < ethers.parseEther(amountUnwarp)) {
+      logInfo(`Saldo wHAUST tidak Cukup untuk swap ${amountUnwarp}`);
+      return;
+    }
 
     logCache(`Swap ${amountUnwarp} WHAUST ke → ${amountUnwarp} HAUST`);
 
@@ -87,24 +100,37 @@ async function Unwarp(wallet, amountUnwarp) {
   }
 }
 
-async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
+async function swap(wallet, param) {
+  const { tokenIn, tokenOut, amountIn, datapath } = param;
+
   const iface = new ethers.Interface(abi_swap);
   const deadline = Math.floor(Date.now() / 1000) + 600;
   const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
   const commands = "0x00";
-  const {amountinput } = inputamount(amountwHAUSTtoWETH);
-  const inputwHAUSTtoWETH = datawHAUSTtoWETH(amountinput);
+
+  const { balancewei: balanceweiIn, symbol: symbolIn, decimal: decimalIn } = await cekbalance(wallet, tokenIn);
+  const amountdecimal = ethers.parseUnits(amountIn, decimalIn);
+
+  const { symbol: symbolOut } = await cekbalance(wallet, tokenOut);
+
+  const { amountinput } = inputamount(amountdecimal);
+  const inputdata = inputdatabytes(amountinput, datapath);
 
   const calldata = iface.encodeFunctionData("execute", [
     commands,
-    [inputwHAUSTtoWETH],
+    [inputdata],
     deadline,
   ]);
 
-  logInfo(`Swap ${amountwHAUSTtoWETH} wHAUST ke WETH`);
+  if (balanceweiIn < amountdecimal) {
+    logInfo(`Saldo ${symbolIn} tidak cukup untuk swap ${amountIn}`);
+    return;
+  }
 
-  await approve1(wallet, amountwHAUSTtoWETH);
-  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWETH, 18, expiration);
+  logInfo(`Swap ${amountIn} ${symbolIn} ke ${symbolOut}`);
+
+  await approve1(wallet, tokenIn, amountdecimal);
+  await approve2(wallet, tokenIn, ca_swap, amountdecimal, expiration);
 
   try {
     const tx = await wallet.sendTransaction({
@@ -121,72 +147,38 @@ async function wHAUSTtoWETH(wallet, amountwHAUSTtoWETH) {
   }
 }
 
-async function wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC) {
-  const asw = "0.01";
-  const iface = new ethers.Interface(abi_swap);
-  const deadline = Math.floor(Date.now() / 1000) + 600;
-  const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
-  const commands = "0x00";
-  const {amountinput } = inputamount(amountwHAUSTtoWBTC);
-  const inputwHAUSTtoWBTC = datawHAUSTtoWBTC(amountinput);
-
-  const calldata = iface.encodeFunctionData("execute", [
-    commands,
-    [inputwHAUSTtoWBTC],
-    deadline,
-  ]);
-
-  logInfo(`Swap ${amountwHAUSTtoWBTC} wHAUST ke WBTC`);
-
-  await approve1(wallet, amountwHAUSTtoWBTC);
-  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoWBTC, 18, expiration);
-
-  try {
-    const tx = await wallet.sendTransaction({
-      to: ca_swap,
-      data: calldata,
-    });
-
-    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
-    await tx.wait();
-    logSuccess(`Swap Berhasil\n`);
-    return tx.hash;
-  } catch (err) {
-    logError(`TX failed: ${err.message || err}`);
+async function sendTG(address, txCount) {
+  if (process.env.SEND_TO_TG !== "true") {
+    console.log("Pengirim pesan Telegram dinonaktifkan.");
+    return;
   }
-}
 
-async function wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT) {
-  const iface = new ethers.Interface(abi_swap);
-  const deadline = Math.floor(Date.now() / 1000) + 600;
-  const expiration = Math.floor(Date.now() / 1000) + 3600 * 24;
-  const commands = "0x00";
-  const {amountinput } = inputamount(amountwHAUSTtoUSDT);
-  const inputwHAUSTtoUSDT = datawHAUSTtoUSDT(amountinput);
+  const retries = 5;
+  const date = new Date().toISOString().split("T")[0];
+  const escape = (text) => text.toString().replace(/([_*[\]()~`>#+-=|{}.!])/g, "\\$1");
 
-  const calldata = iface.encodeFunctionData("execute", [
-    commands,
-    [inputwHAUSTtoUSDT],
-    deadline,
-  ]);
+  const message = `🌐 *Haust Testnet*\n📅 *${escape(date)}*\n👛 *${escape(address)}*\n🔣 *Total TX: ${escape(txCount)}*`;
 
-  logInfo(`Swap ${amountwHAUSTtoUSDT} wHAUST ke USDT`);
-
-  await approve1(wallet, amountwHAUSTtoUSDT);
-  await approve2(wallet, wHAUST_address, ca_swap, amountwHAUSTtoUSDT, 18, expiration);
-
-  try {
-    const tx = await wallet.sendTransaction({
-      to: ca_swap,
-      data: calldata,
-    });
-
-    logInfo(`Tx Dikirim https://explorer-testnet.haust.app/tx/${tx.hash}`);
-    await tx.wait();
-    logSuccess(`Swap Berhasil\n`);
-    return tx.hash;
-  } catch (err) {
-    logError(`TX failed: ${err.message || err}`);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await axios.post(
+        `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
+        {
+          chat_id: process.env.CHAT_ID,
+          text: message,
+          parse_mode: "MarkdownV2",
+        }
+      );
+      logSuccess(`Message sent to Telegram successfully!\n`);
+      return response.data;
+    } catch (error) {
+      logError(`Error sendTG : ${error.message || error}\n`);
+      if (attempt < retries) {
+        await delay(3000); 
+      } else {
+        return null;
+      }
+    }
   }
 }
 
@@ -194,36 +186,38 @@ async function startBot() {
   displayskw();
   await delay(6000);
   console.clear();
-  for (const pk of privateKeys) {
-    const wallet = new ethers.Wallet(pk, provider);
-    const getBalance = await provider.getBalance(wallet.address);
-    const Balance = ethers.formatUnits(getBalance,18);
-    const formatbalance = parseFloat(Balance).toFixed(3);
-    logAccount(`Wallet : ${wallet.address}`);
-    logAccount(`Balance : ${Balance} HAUST`);
+  try {
+    for (const pk of privateKeys) {
+      const wallet = new ethers.Wallet(pk, provider);
+      logAccount(`Wallet : ${wallet.address}`);
 
-    await delay(randomdelay());
+      const amountWarp = "0.3";
+      await Warp(wallet, amountWarp);
+      await delay(randomdelay())
 
-    const amountWarp = "0.3";
-    await Warp(wallet, amountWarp);
-    await delay(randomdelay())
+      const amountUnwarp = "0.19";
+      await Unwarp(wallet, amountUnwarp);
+      await delay(randomdelay())
 
-    const amountUnwarp = "0.19";
-    await Unwarp(wallet, amountUnwarp);
-    await delay(randomdelay())
+      for (const param of params) {
+        try {
+          console.clear();
+          logAccount(`Wallet : ${wallet.address}`);
+          await swap(wallet, param);
+          await delay(randomdelay());
+        } catch (err) {
+          logError(`Swap Param Error: ${err.message || err}`);
+        }
+      }
 
-    const amountwHAUSTtoWETH = randomAmount(0.01, 0.05, 2);
-    await wHAUSTtoWETH(wallet, amountwHAUSTtoWETH);
-    await delay(randomdelay())
-
-    const amountwHAUSTtoWBTC = randomAmount(0.01, 0.05, 2);
-    await wHAUSTtoWBTC(wallet, amountwHAUSTtoWBTC);
-    await delay(randomdelay())
-
-    const amountwHAUSTtoUSDT = randomAmount(0.01, 0.05, 2);
-    await wHAUSTtoUSDT(wallet, amountwHAUSTtoUSDT);
-    await delay(randomdelay())
-
+      const txCount = await provider.getTransactionCount(wallet.address);
+      logAccount(`Totaltx ${wallet.address}`);
+      logAccount(`-->>>: ${txCount}`);
+      await sendTG(wallet.address, txCount);
+      await delay(randomdelay());
+    }
+  } catch (err) {
+    logError(`startBot Error: ${err.message || err}`);
   }
 }
 
