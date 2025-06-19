@@ -202,7 +202,7 @@ async function startBot() {
     logAccount(`Wallet : ${wallet.address}`);
     logAccount(`Balance : ${Balance} HAUST`);
 
-await delay(randomdelay());
+    await delay(randomdelay());
 
     const amountWarp = "0.3";
     await Warp(wallet, amountWarp);
